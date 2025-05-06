@@ -7,20 +7,20 @@ script({
         base: ""
     }
 })
-
-const { base = await git.defaultBranch() } = env.vars
+const { dbg, vars } = env
+const base = vars.base || (await git.defaultBranch())
 const changes = await git.diff({
     base,
     llmify: true,
 })
 if (!changes) cancel("No changes found in the pull request")
-def("GIT_DIFF", changes, {
+dbg(`changes: %s`, changes)
+const gitDiff = def("GIT_DIFF", changes, {
     language: "diff",
     maxTokens: 14000,
     detectPromptInjection: "available",
 })
-
-$`Report errors in <GIT_DIFF> using the annotation format.
+$`Report errors in ${gitDiff} using the annotation format.
 
 - Use best practices of the programming language of each file.
 - If available, provide a URL to the official documentation for the best practice. do NOT invent URLs.
