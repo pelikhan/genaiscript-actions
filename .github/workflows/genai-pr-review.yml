@@ -17,6 +17,8 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
-            - run: npx --yes genaiscript run prr --pull-request-comment --out-trace $GITHUB_STEP_SUMMARY
+            - name: fetch base_ref branch
+              run: git fetch origin ${{ github.event.pull_request.base.ref }}
+            - run: npx --yes genaiscript run prr --vars base=${{ github.event.pull_request.base.ref }} --pull-request-comment --out-trace $GITHUB_STEP_SUMMARY
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

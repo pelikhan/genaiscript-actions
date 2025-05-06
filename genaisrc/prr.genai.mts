@@ -13,6 +13,7 @@ const changes = await git.diff({
     base,
     llmify: true,
 })
+if (!changes) cancel("No changes found in the pull request")
 def("GIT_DIFF", changes, {
     language: "diff",
     maxTokens: 14000,
