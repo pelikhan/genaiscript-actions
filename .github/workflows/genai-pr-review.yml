@@ -1,0 +1,22 @@
+name: genai pull request review
+on:
+    pull_request:
+        types: [opened, ready_for_review, reopened]
+concurrency:
+    group: genai-pr-review-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+permissions:
+    contents: read # permission to read the repository
+    pull-requests: write # permission to write a comment
+    models: read # permission to use github models
+jobs:
+    review:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+            - run: npx --yes genaiscript run pr-review --pull-request-comment --out-trace $GITHUB_STEP_SUMMARY
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
