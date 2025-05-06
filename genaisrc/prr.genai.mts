@@ -8,7 +8,7 @@ script({
     }
 })
 
-const { base = `origin/` + await git.defaultBranch() } = env.vars
+const { base = await git.defaultBranch() } = env.vars
 const changes = await git.diff({
     base,
     llmify: true,
