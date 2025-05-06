@@ -27,6 +27,8 @@ jobs:
             - run: git status
             - run: git diff main
               continue-on-error: true
+            - run: git diff origin/main
+              continue-on-error: true
             - run: git diff --diff-algorithm\=minimal main
               continue-on-error: true
             - name: genaiscript prr
