@@ -23,4 +23,5 @@ $`Report errors in <GIT_DIFF> using the annotation format.
 - If available, provide a URL to the official documentation for the best practice. do NOT invent URLs.
 - Analyze ALL the code. Do not be lazy. This is IMPORTANT.
 - Use tools to read the entire file content to get more context
-- 
+- Do not report warnings, only errors.
+`
