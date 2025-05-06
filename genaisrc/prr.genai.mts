@@ -3,10 +3,12 @@ script({
     description: "Review the current pull request",
     systemSafety: true,
     tools: ["agent_fs", "agent_git"],
+    parameters: {
+        base: ""
+    }
 })
 
-const base =
-    process.env.GITHUB_BASE_REF || (await git.defaultBranch())
+const { base = await git.defaultBranch() } = env.vars
 const changes = await git.diff({
     base,
     llmify: true,
