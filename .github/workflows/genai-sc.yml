@@ -20,7 +20,6 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
-            - run: echo ${{ github.ref }}
             - name: fetch previous commit
               run: git fetch origin ${{ github.event.before }} --depth=1
             - name: genaiscript sc
@@ -35,6 +34,8 @@ jobs:
                 else
                   gh pr create --title "fix: spellcheck markdown files [genai]" --body "This PR contains spellcheck fixes for markdown files." --base $(git rev-parse --abbrev-ref HEAD)
                 fi
+              env:
+                GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             - name: Commit and push changes
               run: |
                   git config user.name "github-actions[bot]"
