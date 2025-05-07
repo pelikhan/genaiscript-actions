@@ -23,7 +23,7 @@ jobs:
             - name: fetch previous commit
               run: git fetch origin ${{ github.event.before }} --depth=1
             - name: genaiscript sc
-              run: npx --yes genaiscript run sc --pull-request-comment --vars base="${{ github.event.before }}" --out-trace $GITHUB_STEP_SUMMARY
+              run: npx --yes genaiscript run sc --vars base="${{ github.event.before }}" --out-trace $GITHUB_STEP_SUMMARY
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             - name: Commit and push changes

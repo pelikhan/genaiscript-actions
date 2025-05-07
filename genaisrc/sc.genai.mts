@@ -20,7 +20,6 @@ let files = env.files.length
 files = files.filter((f) => /\.mdx?$/.test(f.filename))
 console.debug(`files: ${files.map((f) => f.filename).join("\n")}`)
 
-let modified = 0
 for (const file of files) {
     const { text, error, finishReason } = await runPrompt(
         (ctx) => {
@@ -45,7 +44,4 @@ If you do not find any mistakes, respond <NO> and nothing else.
     if (!text || file.content === text || error || finishReason !== "stop" || /<NO>/i.test(text)) continue
     console.debug(`update ${file.filename}`)
     await workspace.writeText(file.filename, text)
-    modified++
 }
-// don't post comment
-if (!modified) cancel("No spelling or grammar mistakes found.")
