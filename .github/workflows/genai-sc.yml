@@ -1,0 +1,28 @@
+name: genai sc
+on:
+    push:
+        branches-ignore:
+            - main
+        paths:
+            - '**/*.md'
+            - '**/*.mdx'
+concurrency:
+    group: genai-sc-{{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+permissions:
+    contents: write # permission to read the repository
+    models: read # permission to use github models
+jobs:
+    review:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+            - name: fetch base branch
+              run: git fetch origin HEAD~1
+            - name: genaiscript prr
+              run: npx --yes genaiscript run sc --out-trace $GITHUB_STEP_SUMMARY
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
