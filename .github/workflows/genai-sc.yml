@@ -29,7 +29,10 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      
             - name: Create pull request if changes exist
               run: |
-                if ! git diff --cached --quiet; then
+                git add -u
+                if git diff --cached --quiet; then
+                  echo "No changes to commit."
+                else
                   gh pr create --title "fix: spellcheck markdown files [genai]" --body "This PR contains spellcheck fixes for markdown files." --base $(git rev-parse --abbrev-ref HEAD)
                 fi
             - name: Commit and push changes
