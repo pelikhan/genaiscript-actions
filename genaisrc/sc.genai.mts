@@ -8,6 +8,7 @@ script({
     group: "mcp",
     parameters: {
         base: "",
+        commit: false
     },
 })
 const { vars } = env
@@ -19,11 +20,12 @@ let files = env.files.length
 files = files.filter((f) => /\.mdx?$/.test(f.filename))
 console.debug(`files: ${files.map((f) => f.filename).join("\n")}`)
 
+let modified = 0
 for (const file of files) {
     const { text, error, finishReason } = await runPrompt(
         (ctx) => {
             const fileRef = ctx.def("FILES", file)
-            ctx.$`Fix the spelling and grammar of the content of ${fileRef}. Return the full file with corrections
+            ctx.$`Fix the spelling and grammar of the content of ${fileRef}. Return the full file with corrections.
 If you find a spelling or grammar mistake, fix it. 
 If you do not find any mistakes, respond <NO> and nothing else.
 
@@ -35,7 +37,7 @@ If you do not find any mistakes, respond <NO> and nothing else.
 - do NOT modify code regions. THIS IS IMPORTANT.
 - do NOT modify URLs
 - do NOT fix \`code\` and \`\`\`code\`\`\` sections
-- in .mdx files, do NOT fix inline typescript code
+- in .mdx files, do NOT fix inline TypeScript code
 `
         },
         { label: file.filename }
@@ -43,4 +45,7 @@ If you do not find any mistakes, respond <NO> and nothing else.
     if (!text || file.content === text || error || finishReason !== "stop" || /<NO>/i.test(text)) continue
     console.debug(`update ${file.filename}`)
     await workspace.writeText(file.filename, text)
+    modified++
 }
+// don't post comment
+if (!modified) cancel("No spelling or grammar mistakes found.")
