@@ -2,7 +2,7 @@ script({
     title: "Pull Request Descriptor",
     description: "Generate a description for the current pull request",
     systemSafety: true,
-    tools: ["agent_fs", "agent_git"],
+    tools: ["agent_fs"],
     parameters: {
         base: "",
     },
