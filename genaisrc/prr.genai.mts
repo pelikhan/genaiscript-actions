@@ -2,7 +2,7 @@ script({
     title: "Pull Request Reviewer",
     description: "Review the current pull request",
     systemSafety: true,
-    tools: ["agent_fs", "agent_git"],
+    tools: ["agent_fs"],
     parameters: {
         base: ""
     }
