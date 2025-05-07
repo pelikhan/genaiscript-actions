@@ -27,6 +27,11 @@ jobs:
               run: npx --yes genaiscript run sc --vars base="${{ github.event.before }}" --out-trace $GITHUB_STEP_SUMMARY
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      
+            - name: Create pull request if changes exist
+              run: |
+                if ! git diff --cached --quiet; then
+                  gh pr create --title "fix: spellcheck markdown files [genai]" --body "This PR contains spellcheck fixes for markdown files." --base $(git rev-parse --abbrev-ref HEAD)
+                fi
             - name: Commit and push changes
               run: |
                   git config user.name "github-actions[bot]"
