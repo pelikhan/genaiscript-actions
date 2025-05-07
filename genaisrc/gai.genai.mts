@@ -3,10 +3,21 @@ script({
     description:
         "Analyze GitHub Action runs to find the root cause of a failure",
     parameters: {
-        workflow: { type: "string" }, // Workflow name
-        failure_run_id: { type: "number" }, // ID of the failed run
-        success_run_id: { type: "number" }, // ID of the successful run
-        branch: { type: "string" }, // Branch name
+        /** the user can get the url from the github web
+         *  like 14890513008 or https://github.com/microsoft/genaiscript/actions/runs/14890513008
+         */
+        runId: {
+            type: "number",
+            description: "Run identifier",
+        },
+        jobId: {
+            type: "number",
+            description: "Job identifier",
+        },
+        runUrl: {
+            type: "string",
+            description: "Run identifier or URL",
+        },
     },
     system: [
         "system",
@@ -18,120 +29,170 @@ script({
     cache: "gai",
     tools: ["fs_read_file", "agent_github", "agent_git"],
 })
-const { output } = env
+const { dbg, output, vars } = env
 
 output.heading(2, "Investigator report")
+output.heading(3, "Context collection")
+const { owner, repo } = await github.info()
 
-// Assign the 'workflow' parameter from environment variables
-let workflow = env.vars.workflow
+let runId: number = vars.runId
+let jobId: number = vars.jobId
+if (isNaN(runId)) {
+    const runUrl = vars.runUrl
+    output.itemLink(`run url`, runUrl)
 
-// If no workflow provided, select from available workflows
-if (!workflow) {
-    const workflows = await github.listWorkflows()
-    workflow = await host.select(
-        "Select a workflow",
-        workflows.map(({ path, name }) => ({ value: path, name }))
-    )
-    if (!workflow) cancel("No workflow selected")
+    // Retrieve repository information
+    const { runRepo, runOwner, runIdUrl, jobIdUrl } =
+        /^https:\/\/github\.com\/(?<runOwner>\w+)\/(?<runRepo>\w+)\/actions\/runs\/(?<runIdUrl>\d+)?(\/job\/(?<jobIdRun>\d+))/i.exec(
+            runUrl
+        )?.groups || {}
+    runId = parseInt(runIdUrl)
+    dbg(`runId: ${runId}`)
+
+    jobId = parseInt(jobIdUrl)
+    dbg(`jobId: ${jobId}`)
+
+    if (runOwner !== owner)
+        cancel(
+            `Run owner ${runOwner} does not match the current repository owner ${owner}`
+        )
+    if (runRepo !== repo)
+        cancel(
+            `Run repository ${runRepo} does not match the current repository ${repo}`
+        )
 }
 
-// Assign failure and success run IDs from environment variables
-const failureRunId = env.vars.failure_run_id
-const lastSuccessRunId = env.vars.success_run_id
+if (isNaN(runId)) throw new Error("You must provide a runId or runUrl")
+output.itemValue(`run id`, runId)
+// fetch run
+const run = await github.workflowRun(runId)
+dbg(`run: %O`, run)
+const branch = run.head_branch
+dbg(`branch: ${branch}`)
 
-// Retrieve repository information
-const { owner, repo, refName } = await github.info()
-
-// Assign branch name, defaulting to current reference name if not provided
-let branch = env.vars.branch || refName
-
-// If no branch provided, select from available branches
-if (!branch) {
-    const branches = await github.listBranches()
-    branch = await host.select("Select a branch", branches)
-    if (!branch) cancel("No branch selected")
-}
+const workflow = await github.workflow(run.workflow_id)
+dbg(`workflow: ${workflow.name}`)
 
 // List workflow runs for the specified workflow and branch
-const runs = await github.listWorkflowRuns(workflow, { branch })
-if (!runs.length) cancel("No runs found")
+const runs = await github.listWorkflowRuns(workflow.id, {
+    status: "completed",
+    branch,
+    count: 100,
+})
+runs.reverse() // from newest to oldest
 
-// Find the index of the failed run using the provided or default criteria
-let firstFailureIndex = failureRunId
-    ? runs.findIndex(({ id }) => id === failureRunId)
-    : runs.findIndex(({ conclusion }) => conclusion === "failure")
+dbg(
+    `runs: %O`,
+    runs.map(({ id, conclusion, workflow_id, html_url, run_started_at }) => ({
+        id,
+        conclusion,
+        workflow_id,
+        html_url,
+        run_started_at,
+    }))
+)
 
-// Default to the first run if no failed run is found
-if (firstFailureIndex < 0) firstFailureIndex = 0
-const firstFailureRun = runs[firstFailureIndex]
-output.heading(3, "First failed run")
-output.item(firstFailureRun.display_title)
-output.itemLink(`run report`, firstFailureRun.html_url)
+const reversedRuns = runs.filter(
+    (r) => new Date(r.run_started_at) <= new Date(run.run_started_at)
+)
+if (!reversedRuns.length) cancel("No runs found")
+dbg(
+    `reversed runs: %O`,
+    reversedRuns.map(
+        ({ id, conclusion, workflow_id, html_url, run_started_at }) => ({
+            id,
+            conclusion,
+            workflow_id,
+            html_url,
+            run_started_at,
+        })
+    )
+)
 
-// Find the index of the last successful run before the failure
-const runsAfterFailure = runs.slice(firstFailureIndex)
-const lastSuccessRunIndex = lastSuccessRunId
-    ? runs.findIndex(({ id }) => id === lastSuccessRunId)
-    : runsAfterFailure.findIndex(({ conclusion }) => conclusion === "success")
+// resolve the first failed workflow run and job
+const firstFailedRun = reversedRuns.find(
+    ({ conclusion }) => conclusion === "failure"
+)
+if (!firstFailedRun) cancel(`first failed run not found`)
+output.itemLink(
+    `first failed run #${firstFailedRun.run_number}`,
+    firstFailedRun.html_url
+)
+const firstFailedJobs = await github.listWorkflowJobs(firstFailedRun.id)
+const firstFailedJob =
+    firstFailedJobs.find(({ conclusion }) => conclusion === "failure") ??
+    firstFailedJobs[0]
+const firstFailureLog = firstFailedJob.content
+if (!firstFailureLog) cancel("No logs found")
+output.itemLink(`first failed job`, firstFailedJob.html_url)
 
-const lastSuccessRun = runsAfterFailure[lastSuccessRunIndex]
+// resolve the latest successful workflow run
+const lastSuccessRun = reversedRuns.find(
+    ({ conclusion }) => conclusion === "success"
+)
+if (lastSuccessRun)
+    output.itemLink(
+        `last successful run #${lastSuccessRun.run_number}`,
+        lastSuccessRun.html_url
+    )
+else output.item(`last successful run not found`)
+
+let gitDiffRef: string
+let logRef: string
+let logDiffRef: string
 if (lastSuccessRun) {
-    if (lastSuccessRun.head_sha === firstFailureRun.head_sha) {
+    if (lastSuccessRun.head_sha === firstFailedRun.head_sha) {
         console.debug("No previous successful run found")
     } else {
-        output.heading(3, "Last successful run")
-        output.item(lastSuccessRun.display_title)
-        output.itemLink(`run report`, lastSuccessRun.html_url)
         output.itemLink(
-            `head ${firstFailureRun.head_sha.slice(0, 7)}`,
-            firstFailureRun.html_url
-        )
-        output.itemLink(
-            `diff ${lastSuccessRun.head_sha.slice(0, 7)}...${firstFailureRun.head_sha.slice(0, 7)}`,
-            `https://github.com/${owner}/${repo}/compare/${lastSuccessRun.head_sha}...${firstFailureRun.head_sha})`
+            `diff (${lastSuccessRun.head_sha.slice(0, 7)}...${firstFailedRun.head_sha.slice(0, 7)})`,
+            `https://github.com/${owner}/${repo}/compare/${lastSuccessRun.head_sha}...${firstFailedRun.head_sha}`
         )
 
         // Execute git diff between the last success and failed run commits
+        await git.fetch("origin", lastSuccessRun.head_sha)
+        await git.fetch("origin", firstFailedRun.head_sha)
         const gitDiff = await git.diff({
             base: lastSuccessRun.head_sha,
-            head: firstFailureRun.head_sha,
+            head: firstFailedRun.head_sha,
             excludedPaths: "**/genaiscript.d.ts",
         })
-        if (gitDiff)
-            def("GIT_DIFF", gitDiff, {
+
+        if (gitDiff) {
+            gitDiffRef = def("GIT_DIFF", gitDiff, {
                 language: "diff",
                 lineNumbers: true,
                 flex: 1,
             })
+        }
     }
 }
 
-// Download logs of the failed job
-const firstFailureJobs = await github.listWorkflowJobs(firstFailureRun.id)
-const firstFailureJob =
-    firstFailureJobs.find(({ conclusion }) => conclusion === "failure") ??
-    firstFailureJobs[0]
-const firstFailureLog = firstFailureJob.content
-if (!firstFailureLog) cancel("No logs found")
-
 if (!lastSuccessRun) {
     // Define log content if no last successful run is available
-    def("LOG", firstFailureLog, { maxTokens: 20000, lineNumbers: false })
+    logRef = def("LOG", firstFailureLog, {
+        maxTokens: 20000,
+        lineNumbers: false,
+    })
 } else {
     const lastSuccessJobs = await github.listWorkflowJobs(lastSuccessRun.id)
     const lastSuccessJob = lastSuccessJobs.find(
-        ({ name }) => firstFailureJob.name === name
+        ({ name }) => firstFailedJob.name === name
     )
     if (!lastSuccessJob)
         console.debug(
-            `could not find job ${firstFailureJob.name} in last success run`
+            `could not find job ${firstFailedJob.name} in last success run`
         )
     else {
-        const lastSuccessLog = lastSuccessJob.content
+        output.itemLink(`last successful job`, lastSuccessJob.html_url)
+        const jobDiff = await github.diffWorkflowJobLogs(
+            firstFailedJob.id,
+            lastSuccessJob.id
+        )
         // Generate a diff of logs between the last success and failed runs
-        defDiff("LOG_DIFF", lastSuccessLog, firstFailureLog, {
+        logDiffRef = def("LOG_DIFF", jobDiff, {
+            language: "diff",
             lineNumbers: false,
-            flex: 4,
         })
     }
 }
@@ -139,13 +200,20 @@ if (!lastSuccessRun) {
 // Instruction for generating a report based on the analysis
 $`Your are an expert software engineer and you are able to analyze the logs and find the root cause of the failure.
 
-${lastSuccessRun ? "- GIT_DIFF contains a diff of 2 run commits" : ""}
-${lastSuccessRun ? "- LOG_DIFF contains a diff of 2 runs in GitHub Action" : "- LOG contains the log of the failed run"}
+You are analyzing a FAILED_RUN and a SUCCESSFUL_RUN.
+
+${gitDiffRef ? `- ${gitDiffRef} contains a diff of 2 run commits` : ""}
+${logDiffRef ? `- ${logDiffRef} contains a diff of 2 workflow runs in GitHub Action` : ""}
+${logRef ? `- ${logRef} contains the log of the failed run` : ""}
+
 - The first run is the last successful run and the second run is the first failed run
+- The commit of the first run is ${firstFailedRun.head_sha}.
+${lastSuccessRun ? `- The commit of the second run is ${lastSuccessRun.head_sha}.` : ""}
 
-Add links to run logs.
+Analyze the diff in LOG_DIFF and provide a summary of the root cause of the failure. Use 'agent_git' and 'agent_github' if you need more information.
+Do not invent git or github information.
 
-Analyze the diff in LOG_DIFF and provide a summary of the root cause of the failure. Show the code that is responsible for the failure.
+Show the code that is responsible for the failure.
 
 If you cannot find the root cause, stop.
 
@@ -154,3 +222,5 @@ Generate a diff with suggested fixes. Use a diff format.
 
 Report suggested fixes in the annotation format.
 `
+
+output.heading(2, `AI Analysis`)
