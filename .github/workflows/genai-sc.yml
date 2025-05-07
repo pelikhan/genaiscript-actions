@@ -35,5 +35,6 @@ jobs:
                     echo "No changes to commit."
                   else
                     git commit -m "fix: spellcheck markdown files [genai]"
+                    git pull origin $(git rev-parse --abbrev-ref HEAD) --ff-only
                     git push
                   fi
