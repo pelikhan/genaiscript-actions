@@ -11,6 +11,7 @@ concurrency:
     cancel-in-progress: true
 permissions:
     contents: write # permission to read the repository
+    pull-requests: write # permission to create pull requests
     models: read # permission to use github models
 jobs:
     review:
@@ -25,7 +26,17 @@ jobs:
             - name: genaiscript sc
               run: npx --yes genaiscript run sc --vars base="${{ github.event.before }}" --out-trace $GITHUB_STEP_SUMMARY
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      
+            - name: Create pull request if changes exist
+              run: |
+                git add -u
+                if git diff --cached --quiet; then
+                  echo "No changes to commit."
+                else
+                  gh pr create --title "fix: spellcheck markdown files [genai]" --body "This PR contains spellcheck fixes for markdown files." --base $(git rev-parse --abbrev-ref HEAD)
+                fi
+              env:
+                GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             - name: Commit and push changes
               run: |
                   git config user.name "github-actions[bot]"
