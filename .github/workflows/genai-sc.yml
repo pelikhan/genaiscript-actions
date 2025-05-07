@@ -20,6 +20,8 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
+            - name: fetch previous commit
+              run: git fetch origin ${{ github.event.before }} --depth=1
             - name: diff2
               run: git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
             - name: genaiscript sc
