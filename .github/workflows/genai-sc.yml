@@ -20,13 +20,13 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: "22"
-            - run: echo ${{ env.GITHUB_REF }}
+            - run: echo ${{ github.ref }}
             - name: fetch previous commit
               run: git fetch origin ${{ github.event.before }} --depth=1
             - name: genaiscript sc
               run: npx --yes genaiscript run sc --vars base="${{ github.event.before }}" --out-trace $GITHUB_STEP_SUMMARY
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      
             - name: Commit and push changes
               run: |
                   git config user.name "github-actions[bot]"
@@ -36,5 +36,6 @@ jobs:
                     echo "No changes to commit."
                   else
                     git commit -m "fix: spellcheck markdown files [genai]"
+                    git pull origin $(git rev-parse --abbrev-ref HEAD) --ff-only
                     git push
                   fi
