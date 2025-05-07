@@ -21,7 +21,7 @@ jobs:
               with:
                   node-version: "22"
             - name: diff
-              run: git diff --name-only ${{ GITHUB_REF }}~1
+              run: git diff --name-only ${{ env.GITHUB_REF }}~1
             - name: diff2
               run: git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
             - name: genaiscript sc
