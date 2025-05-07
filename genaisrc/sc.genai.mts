@@ -40,6 +40,7 @@ If you do not find any mistakes, respond <NO> and nothing else.
         },
         { label: file.filename }
     )
-    if (!text || error || finishReason !== "stop" || /<NO>/i.test(text)) continue
+    if (!text || file.content === text || error || finishReason !== "stop" || /<NO>/i.test(text)) continue
+    console.debug(`update ${file.filename}`)
     await workspace.writeText(file.filename, text)
 }
