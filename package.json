@@ -1,0 +1,10 @@
+{
+  "name": "genaiscript-actions",
+  "scripts": {
+    "test": "node --import tsx --test src/**.test.*ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.15",
+    "tsx": "^4.19.4"
+  }
+}
