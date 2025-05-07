@@ -11,6 +11,7 @@ concurrency:
     cancel-in-progress: true
 permissions:
     contents: write # permission to read the repository
+    pull-requests: write # permission to create pull requests
     models: read # permission to use github models
 jobs:
     review:
